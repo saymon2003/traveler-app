@@ -1,0 +1,58 @@
+﻿CREATE TABLE Travelers (
+    Id INTEGER PRIMARY KEY,
+    FirstName TEXT NOT NULL,
+    LastName TEXT NOT NULL,
+    Style TEXT NOT NULL
+);
+
+CREATE TABLE Destinations (
+    DestinationId INTEGER PRIMARY KEY,
+    Name TEXT NOT NULL,
+    ExperienceType TEXT NOT NULL,
+    CostEstimate REAL NOT NULL
+);
+
+CREATE TABLE TripPlan (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    TravelerId INTEGER NOT NULL,
+    DestinationId INTEGER NOT NULL,
+    FOREIGN KEY (TravelerId) REFERENCES Travelers(Id),
+    FOREIGN KEY (DestinationId) REFERENCES Destinations(DestinationId)
+);
+
+INSERT INTO Travelers (Id, FirstName, LastName, Style) VALUES
+    (101, 'Ava', 'Singh', 'Budget'),
+    (102, 'Liam', 'Chen', 'Luxury'),
+    (103, 'Noah', 'Ali', 'Adventure'),
+    (104, 'Mia', 'Rodriguez', 'Budget'),
+    (105, 'Emma', 'Nguyen', 'Luxury'),
+    (106, 'James', 'Dubois', 'Adventure'),
+    (107, 'Olivia', 'Martinez', 'Luxury'),
+    (108, 'Benjamin', 'Petrov', 'Budget'),
+    (109, 'Isabella', 'Khan', 'Adventure'),
+    (110, 'Lucas', 'Zhao', 'Budget');
+
+INSERT INTO Destinations (DestinationId, Name, ExperienceType, CostEstimate) VALUES
+    (1, 'Bali', 'Beach', 1400),
+    (2, 'Kyoto', 'Culture', 1600),
+    (3, 'Banff', 'Nature', 1200),
+    (4, 'Paris', 'City', 2000),
+    (5, 'Machu Picchu', 'Nature', 1700),
+    (6, 'Lisbon', 'Culture', 1300),
+    (7, 'Reykjavik', 'Nature', 1800),
+    (8, 'Cancún', 'Beach', 1100),
+    (9, 'Tokyo', 'City', 1900),
+    (10, 'Barcelona', 'Culture', 1500);
+
+INSERT INTO TripPlan (TravelerId, DestinationId) VALUES
+     (103, 3),
+     (103, 6);
+
+INSERT INTO TripPlan (TravelerId, DestinationId) VALUES
+     (101, 1),
+     (101, 8);
+
+INSERT INTO TripPlan (TravelerId, DestinationId) VALUES
+     (102, 4),
+     (102, 9),
+     (102, 5);
