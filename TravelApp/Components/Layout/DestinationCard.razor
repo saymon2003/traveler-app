@@ -1,0 +1,14 @@
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">@Name</h5>
+        <p class="card-text">@ExperienceType — $@Price</p>
+        <button class="btn btn-primary" disabled="@(!CanAdd)">Add to Trip</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Name { get; set; }
+    [Parameter] public string ExperienceType { get; set; }
+    [Parameter] public double Price { get; set; }
+    [Parameter] public bool CanAdd { get; set; }
+}

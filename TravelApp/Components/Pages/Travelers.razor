@@ -1,0 +1,40 @@
+@page "/travelers"
+@using TravelApp.Data
+
+<h3>Travelers</h3>
+
+<table class="table table-bordered">
+    <thead class="table-light">
+        <tr>
+            <th>ID</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Style</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var traveler in travelers)
+        {
+            <tr>
+                <td>@traveler.Id</td>
+                <td>@traveler.FirstName</td>
+                <td>@traveler.LastName</td>
+                <td>@traveler.Style</td>
+                <td>
+                    <NavLink class="btn btn-primary" href="@($"/plan-trip/{traveler.Id}")">
+                        Plan Trip
+                    </NavLink>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="mt-3">
+    <a class="btn btn-success" href="add-traveler">Add Traveler</a>
+</div>
+
+@code {
+    private List<Traveler> travelers = Helper.GetTravelers();
+}
