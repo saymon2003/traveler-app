@@ -3,8 +3,10 @@ namespace TravelApp.Data
     public class Traveler
     {
         public int Id { get; set; }
-        public string FirstName { get; set; }
-        public string LastName { get; set; }
-        public string Style { get; set; } // Budget, Adventure, Luxury
+        public string FirstName { get; set; } = "";
+        public string LastName  { get; set; } = "";
+        public string Style     { get; set; } = ""; // Budget | Adventure | Luxury
+
+        public ICollection<TripPlan> TripPlans { get; set; } = new List<TripPlan>();
     }
 }

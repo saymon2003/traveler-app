@@ -1,64 +1,144 @@
 @page "/plan-trip/{TravelerId:int}"
 @using TravelApp.Data
-@inject NavigationManager Navigation
+@inject TravelContext Db
+@inject NavigationManager Nav
 
-<h3>Plan Trip for @traveler.FirstName @traveler.LastName (@traveler.Style)</h3>
+<h3>Plan Trip for @traveler?.FirstName @traveler?.LastName (@traveler?.Style)</h3>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="row">
-            @foreach (var dest in destinations)
-            {
-                <div class="col-md-6 mb-3">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title">@dest.Name</h5>
-                            <p class="card-text">@dest.ExperienceType — $@dest.CostEstimate</p>
-                            <button class="btn btn-primary" disabled="@(CanAddToTrip(dest) ? null : true)">
-                                Add to Trip
-                            </button>
+@if (traveler is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <div class="row">
+                @foreach (var dest in destinations)
+                {
+                    var allowed = CanAddToTrip(dest);
+                    var selected = selectedIds.Contains(dest.DestinationId);
+
+                    <div class="col-md-6 mb-3">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">@dest.Name</h5>
+                                <p class="card-text">@dest.ExperienceType — $@dest.CostEstimate</p>
+
+                                @if (!selected)
+                                {
+                                    <button class="btn btn-primary"
+                                            disabled="@(!allowed)"
+                                            @onclick="() => Add(dest)">
+                                        Add to Trip
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger"
+                                            @onclick="() => Remove(dest)">
+                                        Remove from Trip
+                                    </button>
+                                }
+                            </div>
                         </div>
                     </div>
-                </div>
-            }
-        </div>
-        <a href="/travelers" class="d-block mt-3">← Back to Travelers</a>
-    </div>
+                }
+            </div>
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Trip Itinerary</h5>
-                <p>No destinations selected yet.</p>
+            <a href="/travelers" class="d-block mt-3">← Back to Travelers</a>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Trip Itinerary</h5>
+
+                    @if (selectedIds.Count == 0)
+                    {
+                        <p>No destinations selected yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group mb-3">
+                            @foreach (var d in SelectedDestinations())
+                            {
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>@d.Name</span>
+                                    <button class="btn btn-sm btn-link text-danger"
+                                            title="Remove"
+                                            @onclick="() => Remove(d)">✖</button>
+                                </li>
+                            }
+                        </ul>
+
+                        <p><strong>Total Cost:</strong> $@SelectedDestinations().Sum(d => d.CostEstimate)</p>
+                        <p>
+                            <strong>Experience Types:</strong>
+                            @string.Join(", ", SelectedDestinations().Select(d => d.ExperienceType).Distinct())
+                        </p>
+                    }
+
+                    <button class="btn btn-success w-100" @onclick="SaveTrip" disabled="@(selectedIds.Count == 0)">
+                        Save Trip
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
     [Parameter] public int TravelerId { get; set; }
 
-    private Traveler traveler;
+    private Traveler? traveler;
     private List<Destination> destinations = new();
+    private HashSet<int> selectedIds = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        traveler = Helper.GetTravelers().FirstOrDefault(t => t.Id == TravelerId);
-        if (traveler == null)
+        traveler = await Db.Travelers.FindAsync(TravelerId);
+        if (traveler is null)
         {
-            Navigation.NavigateTo("/travelers");
+            Nav.NavigateTo("/travelers");
+            return;
         }
-        else
-        {
-            destinations = Helper.GetDestinations();
-        }
+
+        destinations = await Db.Destinations.OrderBy(d => d.DestinationId).ToListAsync();
+
+        // Load previously saved selections (if any)
+        selectedIds = (await Db.TripPlans
+            .Where(tp => tp.TravelerId == TravelerId)
+            .Select(tp => tp.DestinationId)
+            .ToListAsync()).ToHashSet();
     }
 
-    private bool CanAddToTrip(Destination dest)
+    private bool CanAddToTrip(Destination dest) => traveler?.Style switch
     {
-        if (traveler.Style == "Budget" && dest.CostEstimate < 1500) return true;
-        if (traveler.Style == "Adventure" && (dest.ExperienceType == "Nature" || dest.ExperienceType == "Culture")) return true;
-        if (traveler.Style == "Luxury") return true;
-        return false;
+        "Budget"    => dest.CostEstimate < 1500,
+        "Adventure" => dest.ExperienceType is "Nature" or "Culture",
+        "Luxury"    => true,
+        _           => false
+    };
+
+    private void Add(Destination dest) => selectedIds.Add(dest.DestinationId);
+    private void Remove(Destination dest) => selectedIds.Remove(dest.DestinationId);
+
+    private IEnumerable<Destination> SelectedDestinations()
+        => destinations.Where(d => selectedIds.Contains(d.DestinationId));
+
+    private async Task SaveTrip()
+    {
+        // Replace any existing plans for this traveler
+        var existing = Db.TripPlans.Where(tp => tp.TravelerId == TravelerId);
+        Db.TripPlans.RemoveRange(existing);
+
+        foreach (var destId in selectedIds)
+        {
+            Db.TripPlans.Add(new TripPlan { TravelerId = TravelerId, DestinationId = destId });
+        }
+
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/travelers");
     }
 }
