@@ -2,11 +2,12 @@ namespace TravelApp.Data
 {
     public class Traveler
     {
-        public int Id { get; set; }
+        public int Id { get; set; }                 // PK
         public string FirstName { get; set; } = "";
-        public string LastName  { get; set; } = "";
-        public string Style     { get; set; } = ""; // Budget | Adventure | Luxury
+        public string LastName { get; set; } = "";
+        public string Style { get; set; } = "";     // "Budget" | "Luxury" | "Adventure"
 
-        public ICollection<TripPlan> TripPlans { get; set; } = new List<TripPlan>();
+        // ✅ Navigation property (needed by PlanTrip + EF relationships)
+        public ICollection<TripPlan> TripPlan { get; set; } = new List<TripPlan>();
     }
 }

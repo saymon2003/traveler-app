@@ -8,23 +8,33 @@ namespace TravelApp.Data
 
         public DbSet<Traveler> Travelers => Set<Traveler>();
         public DbSet<Destination> Destinations => Set<Destination>();
-        public DbSet<TripPlan> TripPlans => Set<TripPlan>();
+        public DbSet<TripPlan> TripPlan => Set<TripPlan>(); // ✅ Add this line
 
-        protected override void OnModelCreating(ModelBuilder b)
+        protected override void OnModelCreating(ModelBuilder mb)
         {
-            b.Entity<Traveler>().ToTable("Travelers").HasKey(t => t.Id);
-            b.Entity<Destination>().ToTable("Destinations").HasKey(d => d.DestinationId);
-            b.Entity<TripPlan>().ToTable("TripPlan").HasKey(tp => tp.Id);
+            mb.Entity<Traveler>(e =>
+            {
+                e.ToTable("Travelers");
+                e.HasKey(t => t.Id);
+            });
 
-            b.Entity<TripPlan>()
-                .HasOne(tp => tp.Traveler)
-                .WithMany(t => t.TripPlans)
-                .HasForeignKey(tp => tp.TravelerId);
+            mb.Entity<Destination>(e =>
+            {
+                e.ToTable("Destinations");
+                e.HasKey(d => d.DestinationId);
+            });
 
-            b.Entity<TripPlan>()
-                .HasOne(tp => tp.Destination)
-                .WithMany(d => d.TripPlans)
-                .HasForeignKey(tp => tp.DestinationId);
+            mb.Entity<TripPlan>(e =>
+            {
+                e.ToTable("TripPlan");
+                e.HasKey(tp => tp.Id);
+                e.HasOne(tp => tp.Traveler)
+                  .WithMany(t => t.TripPlan)
+                  .HasForeignKey(tp => tp.TravelerId);
+                e.HasOne(tp => tp.Destination)
+                  .WithMany(d => d.TripPlan)
+                  .HasForeignKey(tp => tp.DestinationId);
+            });
         }
     }
 }

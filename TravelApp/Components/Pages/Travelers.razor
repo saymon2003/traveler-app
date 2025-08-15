@@ -1,24 +1,91 @@
 @page "/travelers"
+@rendermode InteractiveServer
 @using TravelApp.Data
+@using Microsoft.EntityFrameworkCore
 @inject TravelContext Db
+@inject NavigationManager Nav
 
 <h3>Travelers</h3>
 
-<table class="table table-bordered">
-  <thead class="table-light">
-    <tr>
-      <th>ID</th>
-      <th>First Name</th>
-      <th>Last Name</th>
-      <th>Style</th>
-      <th>Action</th>
-    </tr>
-  </thead>
-  <tbody>
-    @foreach (var t in travelers)
+@if (isLoading)
+{
+    <p>Loading…</p>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger d-flex align-items-center justify-content-between">
+        <span><strong>Error:</strong> @error</span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Load">Reload</button>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="text-muted">Total: @travelers.Count</div>
+        <NavLink class="btn btn-success" href="/travelers/new">Add Traveler</NavLink>
+    </div>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th style="width:80px">ID</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th style="width:140px">Style</th>
+                <th style="width:140px">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (travelers.Count == 0)
+        {
+            <tr><td colspan="5" class="text-muted">No travelers found.</td></tr>
+        }
+        else
+        {
+            @foreach (var t in travelers)
+            {
+                <tr>
+                    <td>@t.Id</td>
+                    <td>@t.FirstName</td>
+                    <td>@t.LastName</td>
+                    <td>@t.Style</td>
+                    <td>
+                        <NavLink class="btn btn-sm btn-primary" href="@($"/plan/{t.Id}")">
+                            Plan Trip
+                        </NavLink>
+                    </td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? error;
+    private List<Traveler> travelers = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
     {
-      <tr>
-        <td>@t.Id</td>
-        <td>@t.FirstName</td>
-        <td>@t.LastName</td>
-        <td>@t.Style</td>
+        isLoading = true;
+        error = null;
+        try
+        {
+            travelers = await Db.Travelers
+                                .AsNoTracking()
+                                .OrderBy(t => t.Id)
+                                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

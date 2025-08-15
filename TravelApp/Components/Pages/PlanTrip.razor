@@ -1,144 +1,185 @@
-@page "/plan-trip/{TravelerId:int}"
+@page "/plan/{id:int}"
+@rendermode InteractiveServer
 @using TravelApp.Data
+@using Microsoft.EntityFrameworkCore
+@using TravelApp.Components.Layout   <!-- if your DestinationCard is under Components/Layout -->
 @inject TravelContext Db
 @inject NavigationManager Nav
 
-<h3>Plan Trip for @traveler?.FirstName @traveler?.LastName (@traveler?.Style)</h3>
+<h3>Plan Trip for @travelerName</h3>
 
-@if (traveler is null)
+@if (loading)
 {
-    <p>Loading...</p>
+    <p>Loading…</p>
+}
+else if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger"><strong>Error:</strong> @error</div>
+}
+else if (traveler is null)
+{
+    <div class="alert alert-warning">Traveler not found.</div>
+    <NavLink href="/travelers">← Back to Travelers</NavLink>
 }
 else
 {
-    <div class="row">
-        <div class="col-md-8">
-            <div class="row">
-                @foreach (var dest in destinations)
-                {
-                    var allowed = CanAddToTrip(dest);
-                    var selected = selectedIds.Contains(dest.DestinationId);
+<div class="row">
+  <div class="col-md-8">
+    <div class="row row-cols-1 row-cols-md-2 g-3">
+      @foreach (var d in destinations)
+      {
+          var enabled  = CanAdd(d);
+          var selected = selectedIds.Contains(d.DestinationId);
 
-                    <div class="col-md-6 mb-3">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="card-title">@dest.Name</h5>
-                                <p class="card-text">@dest.ExperienceType — $@dest.CostEstimate</p>
-
-                                @if (!selected)
-                                {
-                                    <button class="btn btn-primary"
-                                            disabled="@(!allowed)"
-                                            @onclick="() => Add(dest)">
-                                        Add to Trip
-                                    </button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger"
-                                            @onclick="() => Remove(dest)">
-                                        Remove from Trip
-                                    </button>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-
-            <a href="/travelers" class="d-block mt-3">← Back to Travelers</a>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Trip Itinerary</h5>
-
-                    @if (selectedIds.Count == 0)
-                    {
-                        <p>No destinations selected yet.</p>
-                    }
-                    else
-                    {
-                        <ul class="list-group mb-3">
-                            @foreach (var d in SelectedDestinations())
-                            {
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>@d.Name</span>
-                                    <button class="btn btn-sm btn-link text-danger"
-                                            title="Remove"
-                                            @onclick="() => Remove(d)">✖</button>
-                                </li>
-                            }
-                        </ul>
-
-                        <p><strong>Total Cost:</strong> $@SelectedDestinations().Sum(d => d.CostEstimate)</p>
-                        <p>
-                            <strong>Experience Types:</strong>
-                            @string.Join(", ", SelectedDestinations().Select(d => d.ExperienceType).Distinct())
-                        </p>
-                    }
-
-                    <button class="btn btn-success w-100" @onclick="SaveTrip" disabled="@(selectedIds.Count == 0)">
-                        Save Trip
-                    </button>
-                </div>
-            </div>
-        </div>
+          <div class="col">
+              <!-- If your component is under Components/Layout, this will resolve via @using above.
+                   If you put it in Shared/, change this tag to <DestinationCard .../> -->
+              <DestinationCard Destination="d"
+                               Enabled="enabled"
+                               Selected="selected"
+                               OnToggle="ToggleDestination" />
+          </div>
+      }
     </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Trip Itinerary</h5>
+
+        @if (selectedIds.Count == 0)
+        {
+            <p class="text-muted">No destinations selected yet.</p>
+        }
+        else
+        {
+            <ul>
+              @foreach (var name in selectedNames) { <li>@name</li> }
+            </ul>
+            <p><strong>Total Cost:</strong> @totalCost.ToString("C0")</p>
+            <p><strong>Experience Types:</strong> @string.Join(", ", selectedExperienceTypes)</p>
+        }
+
+        <button class="btn btn-success w-100" @onclick="SaveTrip" disabled="@saving">
+            @(saving ? "Saving..." : "Save Trip")
+        </button>
+      </div>
+    </div>
+
+    <NavLink href="/travelers" class="d-block mt-3">← Back to Travelers</NavLink>
+  </div>
+</div>
 }
 
 @code {
-    [Parameter] public int TravelerId { get; set; }
+    [Parameter] public int id { get; set; }
+
+    private bool loading = true;
+    private string? error;
 
     private Traveler? traveler;
+    private string travelerName = "";
+
     private List<Destination> destinations = new();
+
     private HashSet<int> selectedIds = new();
+    private List<string> selectedNames = new();
+    private HashSet<string> selectedExperienceTypes = new();
+    private decimal totalCost;
+    private bool saving = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        traveler = await Db.Travelers.FindAsync(TravelerId);
-        if (traveler is null)
+        loading = true; error = null;
+
+        try
         {
-            Nav.NavigateTo("/travelers");
-            return;
+            traveler = await Db.Travelers.FindAsync(id);
+
+            if (traveler is null)
+            {
+                loading = false;
+                return;
+            }
+
+            travelerName = $"{traveler.FirstName} {traveler.LastName}";
+
+            destinations = await Db.Destinations
+                                   .AsNoTracking()
+                                   .OrderBy(d => d.Name)
+                                   .ToListAsync();
+
+            // Load already-saved selections for this traveler
+            var existing = await Db.Set<TripPlan>()
+                                   .AsNoTracking()
+                                   .Where(tp => tp.TravelerId == id)
+                                   .ToListAsync();
+            selectedIds = existing.Select(tp => tp.DestinationId).ToHashSet();
+
+            Recalculate();
         }
-
-        destinations = await Db.Destinations.OrderBy(d => d.DestinationId).ToListAsync();
-
-        // Load previously saved selections (if any)
-        selectedIds = (await Db.TripPlans
-            .Where(tp => tp.TravelerId == TravelerId)
-            .Select(tp => tp.DestinationId)
-            .ToListAsync()).ToHashSet();
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
     }
 
-    private bool CanAddToTrip(Destination dest) => traveler?.Style switch
+    private bool CanAdd(Destination d) => traveler?.Style switch
     {
-        "Budget"    => dest.CostEstimate < 1500,
-        "Adventure" => dest.ExperienceType is "Nature" or "Culture",
+        "Budget"    => d.CostEstimate < 1500,
+        "Adventure" => d.ExperienceType is "Nature" or "Culture",
         "Luxury"    => true,
         _           => false
     };
 
-    private void Add(Destination dest) => selectedIds.Add(dest.DestinationId);
-    private void Remove(Destination dest) => selectedIds.Remove(dest.DestinationId);
+    private void ToggleDestination(Destination d)
+    {
+        if (!CanAdd(d)) return;
 
-    private IEnumerable<Destination> SelectedDestinations()
-        => destinations.Where(d => selectedIds.Contains(d.DestinationId));
+        if (!selectedIds.Add(d.DestinationId))
+            selectedIds.Remove(d.DestinationId);
+
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        var chosen = destinations.Where(d => selectedIds.Contains(d.DestinationId)).ToList();
+        totalCost = chosen.Sum(d => (decimal)d.CostEstimate);
+        selectedNames = chosen.Select(d => d.Name).ToList();
+        selectedExperienceTypes = chosen.Select(d => d.ExperienceType).ToHashSet();
+        StateHasChanged();
+    }
 
     private async Task SaveTrip()
     {
-        // Replace any existing plans for this traveler
-        var existing = Db.TripPlans.Where(tp => tp.TravelerId == TravelerId);
-        Db.TripPlans.RemoveRange(existing);
-
-        foreach (var destId in selectedIds)
+        try
         {
-            Db.TripPlans.Add(new TripPlan { TravelerId = TravelerId, DestinationId = destId });
-        }
+            saving = true;
 
-        await Db.SaveChangesAsync();
-        Nav.NavigateTo("/travelers");
+            var set = Db.Set<TripPlan>();
+
+            var old = await set.Where(tp => tp.TravelerId == id).ToListAsync();
+            Db.RemoveRange(old);
+
+            foreach (var destId in selectedIds)
+                set.Add(new TripPlan { TravelerId = id, DestinationId = destId });
+
+            await Db.SaveChangesAsync();
+            Nav.NavigateTo("/travelers");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
     }
 }
