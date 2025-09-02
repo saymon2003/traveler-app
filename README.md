@@ -27,3 +27,5 @@ This project was created as part of my coursework to practice **full-stack devel
    ```bash
    git clone https://github.com/saymon2003/traveler-app.git
    cd traveler-app
+   cd TravelerApp
+
